@@ -29,15 +29,17 @@ jobs:
         echo "Running KernelSU-Next setup script for built-in KSU..."
         bash ksu_setup.sh --kernel-path=$(pwd)
 
-        # Setelah ksu_setup.sh berjalan, pastikan defconfig diterapkan dan konfigurasi KSU ada.
-        # ksu_setup.sh seharusnya sudah memanggil make olddefconfig atau sejenisnya.
-        # Namun, kita bisa menambahkan langkah verifikasi di sini jika diperlukan.
-        make whyred_defconfig # Memastikan defconfig diterapkan jika belum
-        make olddefconfig    # Menyatukan perubahan defconfig dan konfigurasi KSU
+        # --- Tambahan untuk memastikan defconfig ---
+        # Ini akan menyalin whyred_defconfig ke .config di root folder kernel
+        # dan kemudian menjalankan olddefconfig untuk memadukan dengan perubahan KSU.
+        echo "Applying defconfig from arch/arm64/configs/whyred_defconfig..."
+        cp arch/arm64/configs/whyred_defconfig .config
+        make olddefconfig
+        # --- Akhir Tambahan ---
+
         echo "Verifying KSU built-in configuration..."
         grep "CONFIG_KSU_ROOT" .config || echo "CONFIG_KSU_ROOT not found in .config, check KSU setup."
         grep "CONFIG_KSU_DEBUG" .config || echo "CONFIG_KSU_DEBUG not found in .config, check KSU setup."
-        # Periksa opsi lain yang relevan untuk built-in KSU jika Anda tahu.
 
     - name: Android kernel build
       uses: lemniskett/android-kernel-actions@master
@@ -48,18 +50,13 @@ jobs:
         arch: arm64
         compiler: clang/14 # Tetap gunakan kompiler yang terakhir Anda coba
 
+        # Di sini, Anda cukup menulis nama defconfig, bukan jalur lengkap.
+        # Action ini akan mencari di arch/arm64/configs/whyred_defconfig secara otomatis.
         defconfig: whyred_defconfig
-        image: Image.gz-dtb # Ini adalah output kernel image utama
+        image: Image.gz-dtb
 
     - name: Upload Kernel Image with Built-in KSU
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.NAME }}
-        # path: ${{ steps.build.outputs.outfile }} akan berisi path ke kernel image yang sudah terintegrasi KSU.
-        # KernelSU yang built-in tidak akan menghasilkan file .ko terpisah yang perlu diunggah.
         path: ${{ steps.build.outputs.outfile }}
-        # Jika ada file lain yang ingin Anda upload (misalnya, dts, dtb, atau zip), tambahkan di sini.
-        # Contoh:
-        # path: |
-        #   ${{ steps.build.outputs.outfile }}
-        #   ./out/arch/arm64/boot/dts/qcom/whyred.dtb
