@@ -1,4 +1,4 @@
-name: RezzFy Breaker KSU NEXT
+name: RezzFy Breaker KSU NEXT (Built-in KSU)
 on:
   workflow_dispatch:
 
@@ -9,41 +9,57 @@ jobs:
     - name: Checkout kernel source
       uses: actions/checkout@v4
       with:
-        submodules: true # Penting jika kernel Anda memiliki submodule
+        submodules: true
 
-    - name: Set up MemKernel as a module (M-OUT) with specified name
+    - name: Install build dependencies
       run: |
-        curl -LSs "https://raw.githubusercontent.com/anko5/MemKernel/refs/heads/main/kernel/setup.sh" | bash -s Y
-        curl -LSs "https://raw.githubusercontent.com/anko5/MemKernel/refs/heads/main/kernel/setup.sh" | bash -s M
+        sudo apt-get update
+        sudo apt-get install -y bc bison build-essential cpio flex gdisk libssl-dev lz4 \
+                                libncurses5-dev libncursesw5-dev rsync xz-utils zlib1g-dev ccache \
+                                gcc-aarch64-linux-gnu
 
-    - name: Add KSU Next support
+    - name: Add KSU Next support (Built-in)
       run: |
+        # Mengunduh dan menjalankan skrip setup KernelSU-Next.
+        # Skrip ini secara default akan mencoba mengintegrasikan KSU sebagai built-in.
+        echo "Downloading KernelSU-Next setup script..."
         curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/refs/heads/next/kernel/setup.sh" -o ksu_setup.sh
+        echo "Making KernelSU-Next setup script executable..."
         chmod +x ksu_setup.sh
+        echo "Running KernelSU-Next setup script for built-in KSU..."
         bash ksu_setup.sh --kernel-path=$(pwd)
+
+        # Setelah ksu_setup.sh berjalan, pastikan defconfig diterapkan dan konfigurasi KSU ada.
+        # ksu_setup.sh seharusnya sudah memanggil make olddefconfig atau sejenisnya.
+        # Namun, kita bisa menambahkan langkah verifikasi di sini jika diperlukan.
+        make whyred_defconfig # Memastikan defconfig diterapkan jika belum
+        make olddefconfig    # Menyatukan perubahan defconfig dan konfigurasi KSU
+        echo "Verifying KSU built-in configuration..."
+        grep "CONFIG_KSU_ROOT" .config || echo "CONFIG_KSU_ROOT not found in .config, check KSU setup."
+        grep "CONFIG_KSU_DEBUG" .config || echo "CONFIG_KSU_DEBUG not found in .config, check KSU setup."
+        # Periksa opsi lain yang relevan untuk built-in KSU jika Anda tahu.
 
     - name: Android kernel build
       uses: lemniskett/android-kernel-actions@master
       id: build
       env:
-        NAME: RezzFy Breaker KSU NEXT
+        NAME: RezzFy Breaker KSU NEXT (Built-in)
       with:
         arch: arm64
-        # --- PERUBAHAN DI SINI: Gunakan Clang ---
-        # Mengganti GCC dengan Clang.
-        # Versi Clang yang umum digunakan untuk kernel Android adalah clang/14 atau clang/15.
-        # Jika clang/14 tidak berfungsi, coba clang/15.
-        compiler: clang/14 # <--- Diubah dari gcc/XX menjadi clang/14
+        compiler: clang/14 # Tetap gunakan kompiler yang terakhir Anda coba
 
         defconfig: whyred_defconfig
-        image: Image.gz-dtb
-        # Tetap aktifkan verbose logging untuk diagnosa yang lebih baik
-        verbose: true
+        image: Image.gz-dtb # Ini adalah output kernel image utama
 
-    - name: Upload Kernel and Module
+    - name: Upload Kernel Image with Built-in KSU
       uses: actions/upload-artifact@v4
       with:
-        name: RezzFy Breaker KSU NEXT
-        path: |
-          ${{ steps.build.outputs.outfile }}
-          ./out/drivers/memkernel/memkernel.ko
+        name: ${{ env.NAME }}
+        # path: ${{ steps.build.outputs.outfile }} akan berisi path ke kernel image yang sudah terintegrasi KSU.
+        # KernelSU yang built-in tidak akan menghasilkan file .ko terpisah yang perlu diunggah.
+        path: ${{ steps.build.outputs.outfile }}
+        # Jika ada file lain yang ingin Anda upload (misalnya, dts, dtb, atau zip), tambahkan di sini.
+        # Contoh:
+        # path: |
+        #   ${{ steps.build.outputs.outfile }}
+        #   ./out/arch/arm64/boot/dts/qcom/whyred.dtb
