@@ -8,14 +8,20 @@ jobs:
     steps:
     - name: Checkout kernel source
       uses: actions/checkout@v4
+      with:
+        submodules: true # Penting jika kernel Anda memiliki submodule
 
     - name: Set up MemKernel as a module (M-OUT) with specified name
       run: |
         curl -LSs "https://raw.githubusercontent.com/anko5/MemKernel/refs/heads/main/kernel/setup.sh" | bash -s Y
         curl -LSs "https://raw.githubusercontent.com/anko5/MemKernel/refs/heads/main/kernel/setup.sh" | bash -s M
+
     - name: Add KSU Next support
       run: |
-        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/refs/heads/next/kernel/setup.sh" -o ksu_setup.sh && bash ksu_setup.sh --kernel-path=$(pwd)
+        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/refs/heads/next/kernel/setup.sh" -o ksu_setup.sh
+        chmod +x ksu_setup.sh
+        bash ksu_setup.sh --kernel-path=$(pwd)
+
     - name: Android kernel build
       uses: lemniskett/android-kernel-actions@master
       id: build
@@ -23,9 +29,16 @@ jobs:
         NAME: RezzFy Breaker KSU NEXT
       with:
         arch: arm64
-        compiler: gcc/12
+        # --- PERUBAHAN DI SINI: Gunakan Clang ---
+        # Mengganti GCC dengan Clang.
+        # Versi Clang yang umum digunakan untuk kernel Android adalah clang/14 atau clang/15.
+        # Jika clang/14 tidak berfungsi, coba clang/15.
+        compiler: clang/14 # <--- Diubah dari gcc/XX menjadi clang/14
+
         defconfig: whyred_defconfig
         image: Image.gz-dtb
+        # Tetap aktifkan verbose logging untuk diagnosa yang lebih baik
+        verbose: true
 
     - name: Upload Kernel and Module
       uses: actions/upload-artifact@v4
